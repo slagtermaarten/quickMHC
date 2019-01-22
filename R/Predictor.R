@@ -1,42 +1,37 @@
 Predictor <- R6::R6Class('Predictor',
   public = list(
     hla_allele = NA,
-    percentile_rank = NA,
-    conn = NA,
-    type = 'binding_affinity',
+    STS_percentile_rank = NA,
     table_name = NA,
+    conn = NA,
     table_conn = NA,
-    initialize = function(hla_allele, percentile_rank) {
-      if (missing(hla_allele)) {
-        self$hla_allele <- 'A0201'
-      } else {
-        self$hla_allele <- shortenHLA(hla_allele)
-      }
-      if (missing(percentile_rank)) {
-        self$percentile_rank <- 1.9
-      }
+    initialize = function(hla_allele = 'A0201') {
+      self$hla_allele <- shortenHLA(hla_allele)
       self$conn <- DBI::dbConnect(RPostgreSQL::PostgreSQL(), 
         dbname = 'binding_affinity',
         user = 'm.slagter'
       )      
       self$table_name <- self$set_table_name(
-        self$hla_allele, self$percentile_rank)
+        self$hla_allele, self$STS_percentile_rank)
       if (self$table_name %in% RPostgreSQL::dbListTables(self$conn)) { 
-        maartenutils::mymessage(sprintf('Connecting %s', self$table_name))
+        maartenutils::mymessage(instance = 'Predictor', 
+          msg = sprintf('Connecting %s', self$table_name))
         self$table_conn <- tbl(self$conn, self$table_name)
       } else { 
-        maartenutils::mymessage(sprintf('Table not found %s', self$table_name))
+        maartenutils::mymessage(instance = 'Predictor', 
+          msg = sprintf('Table not found %s', self$table_name))
       }
     },
     finalize = function() {
-      maartenutils::mymessage(sprintf('Disconnecting %s', self$table_name))
+      maartenutils::mymessage(instance = 'Predictor', 
+          msg = sprintf('Disconnecting %s', self$table_name))
       on.exit(DBI::dbDisconnect(self$conn))
     },
-    set_table_name = function(hla_allele, percentile_rank) {
+    set_table_name = function(hla_allele, STS_percentile_rank) {
       if (self$type == 'binding_affinity') {
         self$table_name <- hla_allele
       } else if (self$type == 'STS') {
-        self$table_name <- sprintf('STS_%s_%.1f', hla_allele, percentile_rank)
+        self$table_name <- sprintf('STS_%s_%.1f', hla_allele, STS_percentile_rank)
       }
     },
     lookup = function(query_peps) {
@@ -51,6 +46,7 @@ Predictor <- R6::R6Class('Predictor',
       setDT(dtf)
       dtf <- dtf[, self$expected_res_columns, with = F]
       dtf <- self$set_col_types(dtf)
+      setkey(dtf, peptide)
       return(unique(dtf))
     },
     set_col_types = function(dtf) {
@@ -92,7 +88,7 @@ Predictor <- R6::R6Class('Predictor',
       if (ncores > 1) doParallel::registerDoParallel(ncores = ncores)
       query_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
         qpl <- query_peps_s[[idx]]
-        maartenutils::mymessage(
+        maartenutils::mymessage(instance = 'Predictor', 
           msg = sprintf('Computing batch %d/%d (%d peptides)', idx, N_batches,
             length(qpl)))
         lres <- self$computer(qpl)

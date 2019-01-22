@@ -1,6 +1,10 @@
 format_query_table <- function(query_table) {
   setDT(query_table)
   query_table <- maartenutils::cond_setnames(query_table, 'hla', 'hla_allele')
+  if ('hla_allele' %in% colnames(query_table)) {
+    query_table[, hla_allele := shortenHLA(hla_allele)]
+  }
+  return(query_table)
 }
 
 
@@ -12,7 +16,8 @@ quickMHC <- function(
   STS_percentile_rank = NULL) {
 
   query_table <- format_query_table(query_table)
-  unique_hla_alleles <- setdiff(unique(query_table$hla_allele), c('', NA))
+  unique_hla_alleles <- setdiff(unique(query_table$hla_allele), c('', NA)) %>%
+    shortenHLA
 
   plyr::ldply(unique_hla_alleles, function(hla_allele) {
     if (is.null(STS_percentile_rank)) {

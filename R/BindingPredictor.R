@@ -40,11 +40,12 @@ wrapper_netmhcpan <- function(
 BindingPredictor <- R6::R6Class('BindingPredictor',
   inherit = Predictor,
   public = list(
-    expected_res_columns = 
-      c('peptide', 'peptide_score_log50k', 'affinity', 'percentile_rank'),
+    expected_res_columns = c('peptide', 'peptide_score_log50k', 'affinity',
+      'percentile_rank'),
     type = 'binding_affinity',
     computer = function(peptides) {
       wrapper_netmhcpan(peptides = peptides) 
     }
-  )
+  ),
+  private = list()
 )
