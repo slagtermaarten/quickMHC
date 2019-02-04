@@ -44,7 +44,7 @@ BindingPredictor <- R6::R6Class('BindingPredictor',
       'percentile_rank'),
     type = 'binding_affinity',
     computer = function(peptides) {
-      wrapper_netmhcpan(peptides = peptides) 
+      wrapper_netmhcpan(peptides = peptides, hla_allele = self$hla_allele) 
     }
   ),
   private = list()
