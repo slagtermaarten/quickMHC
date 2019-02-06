@@ -6,12 +6,8 @@ load_self_epitope_list = function(
   availableSelfLists <- dir(path = path,
     pattern = paste0(hla_allele, '.*', paste0(peptidelength, 'mer')),
     include.dirs = FALSE,
-    full.names = TRUE)
-
-  # availableSelfLists <- dir(path = path,
-  #   pattern = paste0(hla_allele, '.*', paste0(peptidelength, 'mer.*sorted')),
-  #   include.dirs = FALSE,
-  #   full.names = TRUE)
+    full.names = TRUE) %>%
+    { grep('sorted', ., invert = T, value = T) }
 
   if (length(availableSelfLists) == 1) {
     ## Prefilter using GAWK
@@ -104,11 +100,9 @@ STSPredictor <- R6::R6Class('STSPredictor',
         self$self_peptides <- inp_self_peptides
       } else if (is.null(self$self_peptides)) {
         self$self_peptides <- load_self_epitope_list(
-          hla_allele = self$hla_allele, STS_percentile_rank = self$STS_percentile_rank)
+          hla_allele = self$hla_allele,
+          STS_percentile_rank = self$STS_percentile_rank)
       }
-      ## TODO properly integrate into R package so we don't have to recompile
-      ## upon reloading
-      Rcpp::sourceCpp(file.path('~/libs/quickMHC/cpp/match_ext_seq.cpp'))
       res <- data.table('peptide' = peptides)
       res$different_from_self <- match_seq_ext_Rcpp(query_peps = res$peptide,
         ref_list = self$self_peptides, scorematrix = score_matrix)

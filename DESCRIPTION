@@ -1,0 +1,11 @@
+Package: quickMHC
+Title: Cache NetMHCpan predictions
+Version: 0.1.0.0
+Authors@R: person("Maarten", "Slagter", email = "slagter.maarten@gmail.com", role = c("aut", "cre"))
+Description: Cache and lookup MHC binding affinity and STS predictions
+Depends: R (>= 3.0.0), data.table, dplyr
+License: GPL (>= 2)
+LazyData: true
+Imports: RPostgreSQL, R6, dbplyr, maartenutils, Rcpp (>= 1.0.0)
+LinkingTo: Rcpp
+Suggests: testthat
