@@ -97,17 +97,22 @@ Predictor <- R6::R6Class('Predictor',
       N_batches <- ceiling(length(peptides) / batch_size)
       query_peps_s <- split(peptides,
         ceiling(seq(1, length(peptides)) / batch_size))
-      if (ncores > 1) doParallel::registerDoParallel(ncores = ncores)
+      if (ncores > 1) doParallel::registerDoParallel(cores = ncores)
       query_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
         qpl <- query_peps_s[[idx]]
         maartenutils::mymessage(instance = self$table_name,
-          msg = sprintf('Computing batch %d/%d (%d peptides)', idx, N_batches,
+          msg = sprintf('computing batch %d/%d (%d peptides)', idx, N_batches,
             length(qpl)))
+        if (self$verbose) {
+          maartenutils::mymessage(instance = self$table_name,
+            msg = sprintf('computing %s', paste(qpl, collapse = ', ')))
+        }
         lres <- self$computer(qpl)
-        self$store_res(lres)
         return(lres)
       }, .parallel = ncores > 1) %>% rbindlist(fill = T)
-      return(self$sanitize_res(query_res))
+      query_res <- self$sanitize_res(query_res)
+      self$store_res(query_res)
+      return(query_res)
     },
     query = function(peptides, batch_size = 1e5, ncores = 1) {
       peptides <- self$sanitize_query(peptides)
@@ -115,21 +120,26 @@ Predictor <- R6::R6Class('Predictor',
       N_batches <- ceiling(length(peptides) / batch_size)
       query_peps_s <- split(peptides,
         ceiling(seq(1, length(peptides)) / batch_size))
-      if (ncores > 1) doParallel::registerDoParallel(ncores = ncores)
 
+      ## Lookups are performed serially in order to not multiply use the
+      ## database connection associated with the R6 object across multiple
+      ## threads (although this might not be a problem); computations are done
+      ## in parallel
       query_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
         qpl <- query_peps_s[[idx]]
-        maartenutils::mymessage(instance = self$table_name,
-          msg = sprintf('Querying batch %d/%d (%d peptides)', idx, N_batches,
-            length(qpl)))
+        if (self$verbose) {
+          maartenutils::mymessage(instance = self$table_name,
+            msg = sprintf('querying batch %d/%d (%d peptides)', idx, N_batches,
+              length(qpl)))
+        }
         already_computed <- self$lookup(qpl)
         to_be_computed <- setdiff(qpl, already_computed$peptide)
-        query_res <- rbindlist(
+        l_res <- rbindlist(
           list(already_computed, 
             self$compute(to_be_computed, 
               batch_size = batch_size, ncores = ncores)
           ), fill = T)
-        return(query_res)
+        return(l_res)
       }, .parallel = F) %>% rbindlist(fill = T)
       return(query_res)
     },
