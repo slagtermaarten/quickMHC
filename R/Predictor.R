@@ -123,8 +123,8 @@ Predictor <- R6::R6Class('Predictor',
 
       ## Lookups are performed serially in order to not multiply use the
       ## database connection associated with the R6 object across multiple
-      ## threads (although this might not be a problem); computations are done
-      ## in parallel
+      ## threads; computations are done in parallel.
+      # if (ncores > 1) doParallel::registerDoParallel(cores = ncores)
       query_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
         qpl <- query_peps_s[[idx]]
         if (self$verbose) {
@@ -136,8 +136,7 @@ Predictor <- R6::R6Class('Predictor',
         to_be_computed <- setdiff(qpl, already_computed$peptide)
         l_res <- rbindlist(
           list(already_computed, 
-            self$compute(to_be_computed, 
-              batch_size = batch_size, ncores = ncores)
+            self$compute(to_be_computed, batch_size = 100, ncores = ncores)
           ), fill = T)
         return(l_res)
       }, .parallel = F) %>% rbindlist(fill = T)

@@ -83,14 +83,14 @@ STSPredictor <- R6::R6Class('STSPredictor',
     self_peptides = NULL,
     expected_res_columns = c('peptide', 'different_from_self'),
     type = 'STS',
-    initialize = function(hla_allele=NULL, STS_percentile_rank=NULL,
-      verbose=F) {
+    initialize = function(hla_allele = NULL, 
+      STS_percentile_rank=NULL, verbose=F) {
       if (!is.null(STS_percentile_rank)) {
         self$STS_percentile_rank <- STS_percentile_rank
       } else {
         self$STS_percentile_rank <- 1.9
       }
-      super$initialize(hla_allele)
+      super$initialize(hla_allele = hla_allele, verbose = verbose)
     },
     computer = function(peptides, inp_self_peptides = NULL,
       score_matrix = load_selfsimilarity_matrix()) {

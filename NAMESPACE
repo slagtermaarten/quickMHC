@@ -1,6 +1,6 @@
-exportPattern("^[^\\.]")
 useDynLib(quickMHC, .registration=TRUE)
 exportPattern("^[[:alpha:]]+")
+exportPattern("^[^\\.]")
 
 import(data.table)
 importFrom(Rcpp, evalCpp)
