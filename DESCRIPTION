@@ -6,6 +6,6 @@ Description: Cache and lookup MHC binding affinity and STS predictions
 Depends: R (>= 3.0.0), data.table, dplyr
 License: GPL (>= 2)
 LazyData: true
-Imports: RPostgreSQL, R6, dbplyr, maartenutils, Rcpp (>= 1.0.0)
+Imports: RPostgreSQL, R6, dbplyr, maartenutils, Rcpp (>= 1.0.0), glue
 LinkingTo: Rcpp
 Suggests: testthat

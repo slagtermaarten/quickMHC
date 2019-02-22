@@ -88,7 +88,25 @@ Predictor <- R6::R6Class('Predictor',
       } else {
         RPostgreSQL::dbWriteTable(self$conn, self$table_name, dtf,
           row.names = F)
+        self$index_SQL()
       }
+    },
+    unique_SQL = function() {
+      column_names <- paste(glue::glue('"{self$expected_res_columns}"'), 
+        collapse = ', ')
+      RPostgreSQL::dbSendQuery(self$conn, glue::glue('
+         CREATE TABLE "{self$table_name}_temp" (LIKE "{self$table_name}");
+         INSERT INTO "{self$table_name}_temp"({column_names})
+         SELECT DISTINCT ON ("peptide") {column_names} FROM "{self$table_name}");
+         DROP TABLE "{self$table_name}" CASCADE;
+         ALTER TABLE "{self$table_name}_temp" RENAME TO "{self$table_name}";
+      ')
+    },
+    index_SQL = function() {
+      self$unique_SQL()
+      RPostgreSQL::dbSendQuery(self$conn, 
+        glue::glue('CREATE UNIQUE INDEX "{self$table_name}_idx" 
+          ON "{self$table_name}" (peptide)'))
     },
     compute = function(peptides, batch_size = 1e5, ncores = 1) {
       if (is.null(peptides) || length(peptides) == 0 || all(is.na(peptides)))
