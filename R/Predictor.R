@@ -42,8 +42,10 @@ Predictor <- R6::R6Class('Predictor',
       }
     },
     lookup = function(query_peps) {
-      res <- dplyr::filter(self$table_conn, peptide %in% query_peps) %>%
-        dplyr::collect()
+      res <- tryCatch(
+        dplyr::filter(self$table_conn, peptide %in% query_peps) %>%
+        dplyr::collect(),
+        error = function(e) { NULL })
       return(self$sanitize_res(res))
     },
     sanitize_query = function(peptides) {
@@ -83,30 +85,38 @@ Predictor <- R6::R6Class('Predictor',
     store_res = function(dtf) {
       dtf <- self$sanitize_res(dtf)
       if (RPostgreSQL::dbExistsTable(self$conn, self$table_name)) {
-        RPostgreSQL::dbWriteTable(self$conn, self$table_name, dtf,
-          row.names = F, append = T)
+        tryCatch({
+          RPostgreSQL::dbWriteTable(self$conn, self$table_name, dtf,
+            row.names = F, append = T)
+        }, error = function(e) { print(e) })
       } else {
-        RPostgreSQL::dbWriteTable(self$conn, self$table_name, dtf,
-          row.names = F)
+        tryCatch({
+          RPostgreSQL::dbWriteTable(self$conn, self$table_name, dtf,
+            row.names = F)
+        }, error = function(e) { print(e) })
         self$index_SQL()
       }
     },
     unique_SQL = function() {
-      column_names <- paste(glue::glue('"{self$expected_res_columns}"'), 
+      column_names <- paste(glue::glue('"{self$expected_res_columns}"'),
         collapse = ', ')
-      RPostgreSQL::dbSendQuery(self$conn, glue::glue('
-         CREATE TABLE "{self$table_name}_temp" (LIKE "{self$table_name}");
-         INSERT INTO "{self$table_name}_temp"({column_names})
-         SELECT DISTINCT ON ("peptide") {column_names} FROM "{self$table_name}");
-         DROP TABLE "{self$table_name}" CASCADE;
-         ALTER TABLE "{self$table_name}_temp" RENAME TO "{self$table_name}";
-      ')
+      tryCatch({
+        RPostgreSQL::dbSendQuery(self$conn, glue::glue('
+          CREATE TABLE "{self$table_name}_temp" (LIKE "{self$table_name}");
+          INSERT INTO "{self$table_name}_temp"({column_names})
+          SELECT DISTINCT ON ("peptide") {column_names} FROM "{self$table_name}";
+          DROP TABLE "{self$table_name}" CASCADE;
+          ALTER TABLE "{self$table_name}_temp" RENAME TO "{self$table_name}";
+        '))
+      }, error = function(e) { print(e) })
     },
     index_SQL = function() {
       self$unique_SQL()
-      RPostgreSQL::dbSendQuery(self$conn, 
-        glue::glue('CREATE UNIQUE INDEX "{self$table_name}_idx" 
-          ON "{self$table_name}" (peptide)'))
+      tryCatch({
+        RPostgreSQL::dbSendQuery(self$conn,
+          glue::glue('CREATE UNIQUE INDEX "{self$table_name}_idx"
+            ON "{self$table_name}" (peptide)'))
+      }, error = function(e) { print(e) })
     },
     compute = function(peptides, batch_size = 1e5, ncores = 1) {
       if (is.null(peptides) || length(peptides) == 0 || all(is.na(peptides)))
@@ -153,7 +163,7 @@ Predictor <- R6::R6Class('Predictor',
         already_computed <- self$lookup(qpl)
         to_be_computed <- setdiff(qpl, already_computed$peptide)
         l_res <- rbindlist(
-          list(already_computed, 
+          list(already_computed,
             self$compute(to_be_computed, batch_size = 100, ncores = ncores)
           ), fill = T)
         return(l_res)
