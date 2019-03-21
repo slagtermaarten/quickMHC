@@ -9,8 +9,8 @@ Predictor <- R6::R6Class('Predictor',
     initialize = function(hla_allele = 'A0201', verbose = F) {
       self$hla_allele <- shortenHLA(hla_allele)
       self$conn <- DBI::dbConnect(RPostgreSQL::PostgreSQL(max.con = 100),
-        dbname = 'binding_affinity',
-        user = 'm.slagter'
+        dbname = config$db_name,
+        user = config$db_user
       )
       self$table_name <- self$set_table_name(
         self$hla_allele, self$STS_percentile_rank)
