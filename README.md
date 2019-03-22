@@ -3,7 +3,7 @@
 Wrapper around NetMHCpan3.0 and a C++ implementation of our peptide similarity to self 
 determination code for running on *nix systems.  Results are stored in a PostgreSQL 
 database for future lookups.  The $USER is assumed to have read/write access to this 
-database, named `binding_affinity`.  I can make this configurable upon request.
+database, named `binding_affinity`.
 
 Binding affinity predictions are stored as such (example from the `A0201` table)
 
@@ -25,8 +25,7 @@ STS predictions are stored as such (example from the `STS_A1101_1.9` table)
 
 * Configure `quickMHC` to know what user and database to use. You can do this by defining 
   any config file (found using the regex: `.*quickMHC.*\\.yaml`) in the following 
-  directories (ordered in descending priority): the current working directory, ~/.config, 
-  the location of quickMHC's installation. 
+  directories (ordered in descending priority): ~/.config, the current working directory, the location of quickMHC's installation. 
 
 # Usage
 
