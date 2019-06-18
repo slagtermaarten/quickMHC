@@ -42,10 +42,11 @@ Predictor <- R6::R6Class('Predictor',
       }
     },
     lookup = function(query_peps) {
-      res <- tryCatch(
-        dplyr::filter(self$table_conn, peptide %in% query_peps) %>%
-        dplyr::collect(),
-        error = function(e) { NULL })
+      query_peps <- self$sanitize_query(query_peps)
+      quoted_peps <- paste(sprintf("'%s'", query_peps), collapse = ', ')
+      sql <- sprintf('SELECT * FROM "%s" WHERE peptide IN (%s)', 
+        self$table_name, quoted_peps)
+      res <- RPostgreSQL::dbGetQuery(self$conn, sql) %>% as.data.table
       return(self$sanitize_res(res))
     },
     sanitize_query = function(peptides) {
@@ -128,7 +129,6 @@ Predictor <- R6::R6Class('Predictor',
         if (overwrite) {
           if (!maartenutils::null_dat(already_computed)) {
             self$remove_peptides(already_computed$peptide)
-            already_computed <- NULL
           }
         } else {
           peptides <- setdiff(peptides, already_computed$peptide)
