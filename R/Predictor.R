@@ -118,13 +118,21 @@ Predictor <- R6::R6Class('Predictor',
             ON "{self$table_name}" (peptide)'))
       }, error = function(e) { print(e) })
     },
-    compute = function(peptides, batch_size = 1e5, ncores = 1, check_input = T) {
+    compute = function(peptides, batch_size = 1e5, ncores = 1, check_input = T,
+      overwrite = F) {
       if (is.null(peptides) || length(peptides) == 0 || all(is.na(peptides)))
         return(NULL)
       peptides <- self$sanitize_query(peptides)
-      if (check_input) {
+      if (check_input || overwrite) {
         already_computed <- self$lookup(peptides)
-        peptides <- setdiff(peptides, already_computed$peptide)
+        if (overwrite) {
+          if (!maartenutils::null_dat(already_computed)) {
+            self$remove_peptides(already_computed$peptide)
+            already_computed <- NULL
+          }
+        } else {
+          peptides <- setdiff(peptides, already_computed$peptide)
+        }
       }
 
       if (length(peptides) > 0) {
