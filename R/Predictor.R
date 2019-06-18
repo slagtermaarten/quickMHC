@@ -118,29 +118,49 @@ Predictor <- R6::R6Class('Predictor',
             ON "{self$table_name}" (peptide)'))
       }, error = function(e) { print(e) })
     },
-    compute = function(peptides, batch_size = 1e5, ncores = 1) {
+    compute = function(peptides, batch_size = 1e5, ncores = 1, check_input = T) {
       if (is.null(peptides) || length(peptides) == 0 || all(is.na(peptides)))
         return(NULL)
       peptides <- self$sanitize_query(peptides)
-      N_batches <- ceiling(length(peptides) / batch_size)
-      query_peps_s <- split(peptides,
-        ceiling(seq(1, length(peptides)) / batch_size))
-      if (ncores > 1) doParallel::registerDoParallel(cores = ncores)
-      query_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
-        qpl <- query_peps_s[[idx]]
-        maartenutils::mymessage(instance = self$table_name,
-          msg = sprintf('computing batch %d/%d (%d peptides)', idx, N_batches,
-            length(qpl)))
-        if (self$verbose) {
+      if (check_input) {
+        already_computed <- self$lookup(peptides)
+        peptides <- setdiff(peptides, already_computed$peptide)
+      }
+
+      if (length(peptides) > 0) {
+        N_batches <- ceiling(length(peptides) / batch_size)
+        query_peps_s <- split(peptides,
+          ceiling(seq(1, length(peptides)) / batch_size))
+        if (ncores > 1) doParallel::registerDoParallel(cores = ncores)
+        compute_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
+          qpl <- query_peps_s[[idx]]
           maartenutils::mymessage(instance = self$table_name,
-            msg = sprintf('computing %s', paste(qpl, collapse = ', ')))
+            msg = sprintf('computing batch %d/%d (%d peptides)', idx, N_batches,
+              length(qpl)))
+          if (self$verbose) {
+            maartenutils::mymessage(instance = self$table_name,
+              msg = sprintf('computing %s', paste(qpl, collapse = ', ')))
+          }
+          lres <- self$computer(qpl)
+          return(lres)
+        }, .parallel = ncores > 1) %>% rbindlist(fill = T)
+        self$store_res(compute_res)
+      }
+
+      successful_lookups <- 
+        check_input && !maartenutils::null_dat(already_computed)
+      if (length(peptides) > 0) {
+        if (successful_lookups) {
+          compute_res <- rbind(already_computed, compute_res)
         }
-        lres <- self$computer(qpl)
-        return(lres)
-      }, .parallel = ncores > 1) %>% rbindlist(fill = T)
-      query_res <- self$sanitize_res(query_res)
-      self$store_res(query_res)
-      return(query_res)
+      } else {
+        if (successful_lookups) {
+          compute_res <- already_computed
+        } else {
+          compute_res <- NULL
+        }
+      }
+      return(compute_res)
     },
     query = function(peptides, batch_size = 1e5, ncores = 1) {
       peptides <- self$sanitize_query(peptides)
@@ -149,9 +169,10 @@ Predictor <- R6::R6Class('Predictor',
       query_peps_s <- split(peptides,
         ceiling(seq(1, length(peptides)) / batch_size))
 
-      ## Lookups are performed serially in order to not multiply use the
-      ## database connection associated with the R6 object across multiple
-      ## threads; computations are done in parallel.
+      ## Lookups are performed in batches (probably faster but never really
+      ## tested it) and serially in order to not multiply
+      ## use the database connection associated with the R6 object across
+      ## multiple threads; computations are done in parallel.
       # if (ncores > 1) doParallel::registerDoParallel(cores = ncores)
       query_res <- plyr::llply(seq_along(query_peps_s), function(idx) {
         qpl <- query_peps_s[[idx]]
