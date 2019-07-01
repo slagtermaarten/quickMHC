@@ -44,12 +44,13 @@ Predictor <- R6::R6Class('Predictor',
     lookup = function(query_peps) {
       query_peps <- self$sanitize_query(query_peps)
       quoted_peps <- paste(sprintf("'%s'", query_peps), collapse = ', ')
-      sql <- sprintf('SELECT * FROM "%s" WHERE peptide IN (%s)', 
+      sql <- sprintf('SELECT * FROM "%s" WHERE peptide IN (%s);', 
         self$table_name, quoted_peps)
       res <- RPostgreSQL::dbGetQuery(self$conn, sql) %>% as.data.table
       return(self$sanitize_res(res))
     },
     sanitize_query = function(peptides) {
+      if (is.null(peptides) || length(peptides == 0)) return(NULL)
       return(unique(setdiff(peptides, c('', NA))))
     },
     sanitize_res = function(dtf) {
@@ -115,27 +116,22 @@ Predictor <- R6::R6Class('Predictor',
       self$unique_SQL()
       tryCatch({
         RPostgreSQL::dbSendQuery(self$conn,
-          glue::glue('CREATE UNIQUE INDEX "{self$table_name}_idx"
-            ON "{self$table_name}" (peptide)'))
+          glue::glue('create unique index if not exists "{self$table_name}_idx"
+            ON "{self$table_name}" (peptide);'))
       }, error = function(e) { print(e) })
     },
-    compute = function(peptides, batch_size = 1e5, ncores = 1, check_input = T,
-      overwrite = F) {
+    compute = function(peptides, batch_size = 1e5, ncores = 1, overwrite = F) {
       if (is.null(peptides) || length(peptides) == 0 || all(is.na(peptides)))
         return(NULL)
       peptides <- self$sanitize_query(peptides)
-      if (check_input || overwrite) {
+      if (overwrite) {
         already_computed <- self$lookup(peptides)
-        if (overwrite) {
-          if (!maartenutils::null_dat(already_computed)) {
-            self$remove_peptides(already_computed$peptide)
-          }
-        } else {
-          peptides <- setdiff(peptides, already_computed$peptide)
-        }
+        self$remove_peptides(already_computed$peptide)
       }
 
-      if (length(peptides) > 0) {
+      if (length(peptides) == 0) {
+        return(NULL) 
+      } else {
         N_batches <- ceiling(length(peptides) / batch_size)
         query_peps_s <- split(peptides,
           ceiling(seq(1, length(peptides)) / batch_size))
@@ -153,22 +149,8 @@ Predictor <- R6::R6Class('Predictor',
           return(lres)
         }, .parallel = ncores > 1) %>% rbindlist(fill = T)
         self$store_res(compute_res)
+        return(compute_res)
       }
-
-      successful_lookups <- 
-        check_input && !maartenutils::null_dat(already_computed)
-      if (length(peptides) > 0) {
-        if (successful_lookups) {
-          compute_res <- rbind(already_computed, compute_res)
-        }
-      } else {
-        if (successful_lookups) {
-          compute_res <- already_computed
-        } else {
-          compute_res <- NULL
-        }
-      }
-      return(compute_res)
     },
     query = function(peptides, batch_size = 1e5, ncores = 1) {
       peptides <- self$sanitize_query(peptides)
@@ -200,7 +182,8 @@ Predictor <- R6::R6Class('Predictor',
       return(query_res)
     },
     remove_peptides = function(peptides) {
-      peptides <- unique(peptides)
+      peptides <- self$sanitize_query(peptides)
+      if (is.null(peptides)) return(NULL)
       RPostgreSQL::dbSendQuery(self$conn,
         sprintf('DELETE FROM "%s" WHERE "peptide" IN (%s)', self$table_name,
           paste(sprintf("'%s'", peptides), collapse = ', ')))
