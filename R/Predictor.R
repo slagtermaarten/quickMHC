@@ -42,16 +42,22 @@ Predictor <- R6::R6Class('Predictor',
       }
     },
     lookup = function(query_peps) {
+      if (!self$check_table_existence(operation = 'lookup')) {
+        return(NULL)
+      }
       query_peps <- self$sanitize_query(query_peps)
       quoted_peps <- paste(sprintf("'%s'", query_peps), collapse = ', ')
       sql <- sprintf('SELECT * FROM "%s" WHERE peptide IN (%s);', 
         self$table_name, quoted_peps)
-      res <- RPostgreSQL::dbGetQuery(self$conn, sql) %>% as.data.table
+      res <- RPostgreSQL::dbGetQuery(self$conn, sql)
       return(self$sanitize_res(res))
     },
     sanitize_query = function(peptides) {
-      if (is.null(peptides) || length(peptides == 0)) return(NULL)
-      return(unique(setdiff(peptides, c('', NA))))
+      if (is.null(peptides) || length(peptides) == 0) {
+        return(NULL)
+      } else {
+        return(unique(setdiff(peptides, c('', NA))))
+      }
     },
     sanitize_res = function(dtf) {
       if (maartenutils::null_dat(dtf)) return(NULL)
@@ -86,7 +92,7 @@ Predictor <- R6::R6Class('Predictor',
     },
     store_res = function(dtf) {
       dtf <- self$sanitize_res(dtf)
-      if (RPostgreSQL::dbExistsTable(self$conn, self$table_name)) {
+      if (self$check_table_existence(operation = 'store_res', verbose = F)) {
         tryCatch({
           RPostgreSQL::dbWriteTable(self$conn, self$table_name, dtf,
             row.names = F, append = T)
@@ -100,6 +106,9 @@ Predictor <- R6::R6Class('Predictor',
       }
     },
     unique_SQL = function() {
+      if (!self$check_table_existence(operation = 'unique_SQL')) {
+        return(NULL)
+      }
       column_names <- paste(glue::glue('"{self$expected_res_columns}"'),
         collapse = ', ')
       tryCatch({
@@ -113,6 +122,9 @@ Predictor <- R6::R6Class('Predictor',
       }, error = function(e) { print(e) })
     },
     index_SQL = function() {
+      if (!self$check_table_existence(operation = 'index_SQL')) {
+        return(NULL)
+      }
       self$unique_SQL()
       tryCatch({
         RPostgreSQL::dbSendQuery(self$conn,
@@ -124,8 +136,8 @@ Predictor <- R6::R6Class('Predictor',
       if (is.null(peptides) || length(peptides) == 0 || all(is.na(peptides)))
         return(NULL)
       peptides <- self$sanitize_query(peptides)
+      already_computed <- self$lookup(peptides)
       if (overwrite) {
-        already_computed <- self$lookup(peptides)
         self$remove_peptides(already_computed$peptide)
       }
 
@@ -148,8 +160,27 @@ Predictor <- R6::R6Class('Predictor',
           lres <- self$computer(qpl)
           return(lres)
         }, .parallel = ncores > 1) %>% rbindlist(fill = T)
-        self$store_res(compute_res)
+
+        if (overwrite) {
+          self$store_res(compute_res)
+        } else {
+          self$store_res(compute_res[!peptide %in% already_computed$peptide])
+        }
         return(compute_res)
+      }
+    },
+    check_table_existence = function(operation = 'unspecified', 
+      verbose = self$verbose) {
+      if (!RPostgreSQL::dbExistsTable(self$conn, self$table_name)) {
+        if (verbose) {
+          maartenutils::mymessage(instance = self$table_name,
+            msg = sprintf(
+              'Table %s does not exist yet, skipping the %s operation', 
+              self$table_name, operation))
+        }
+        return(F)
+      } else {
+        return(T)
       }
     },
     query = function(peptides, batch_size = 1e5, ncores = 1) {

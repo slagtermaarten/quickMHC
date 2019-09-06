@@ -1,6 +1,8 @@
 shortenHLA <- function(hla_alleles = 'HLA-A*02:01') {
-  vapply(hla_alleles, function(hla_allele)
-    gsub('\\-|\\*|\\:|HLA', '', toupper(hla_allele)), character(1))
+  vapply(hla_alleles, function(hla_allele) {
+    toupper(hla_allele) %>%
+      { gsub('\\-|\\*|\\:|HLA|_', '', .) } 
+  }, character(1))
 }
 
 expandHLA <- function(hla_alleles = 'A*0201') {

@@ -10,26 +10,29 @@
 #' database are queried for their binding affinity and checked for STS coverage
 #' in the associated STS database
 #'
-precompute_peps <- function(peptides = all_peps, hla_allele = 'B2705', 
-  perform_STS = T, percentile_rank = 1.9, ncores = 10, batch_size = 1e6) {
+precompute_peps <- function(peptides = all_peps, hla_allele = 'B2705',
+  perform_STS = T, percentile_rank = 1.9, ncores = 10, batch_size = 1e6, 
+  index = F) {
 
   if (perform_STS) {
     job_description <- 'BA and STS'
   } else {
     job_description <- 'BA'
   }
-  mymessage(sprintf('Precomputing all %s - %s - %.1f', 
-      job_description, hla_allele, percentile_rank)) 
-  BA_predictor <- BindingPredictor$new(
-    hla_allele = hla_allele, verbose = T) 
-  BA_predictor$index_SQL()
+  message(sprintf('Precomputing all %s - %s - %.1f',
+      job_description, hla_allele, percentile_rank))
+  BA_predictor <- BindingPredictor$new(hla_allele = hla_allele, verbose = T)
+
+  if (index) {
+    BA_predictor$index_SQL()
+  }
 
   # peptides <- c("AKARAAFSL", "AKARGHFQK", "AKARIIMLI", "AKARLVRYM", "AKARQLIGL",
   #   "AKARVVQLR", "AKASCILPV", "AKASCLPSK", "AKASFSLRL", "AKASIAFIF",
   #   "AKASMISKL")
   l_pr <- percentile_rank
   if (is.null(peptides) || length(peptides) == 0) {
-    query_peps <- 
+    peptides <-
       dplyr::filter(BA_predictor$table_conn, percentile_rank <= l_pr) %>%
       select(peptide) %>%
       collect %>%
@@ -38,30 +41,41 @@ precompute_peps <- function(peptides = all_peps, hla_allele = 'B2705',
   } else {
     res <- BA_predictor$query(
       peptides, ncores = ncores, batch_size = batch_size)
-    query_peps <- res[percentile_rank <= l_pr, peptide]
+    # all(peptides %in% res$peptide)
+    if (!null_dat(res)) {
+      STS_query_peps <- res[percentile_rank <= l_pr, peptide]
+    } else {
+      STS_query_peps <- NULL
+    }
+    # STS_query_peps <- res[percentile_rank <= 4, peptide]
+    # problem_peps <- c('TTFAHSSTV', 'IQNLQGLFV', 'RLVQARALI', 'LVLNCCRAV')
+    # problem_peps %in% peptides
+    # problem_peps %in% res$peptide
+    # problem_peps %in% STS_query_peps
   }
   rm(BA_predictor)
 
   if (perform_STS) {
     STS_predictor <- STSPredictor$new(
-      hla_allele = hla_allele,
-      STS_percentile_rank = percentile_rank, verbose = T)
+      hla_allele = hla_allele, STS_percentile_rank = l_pr, verbose = T)
     # res <- RPostgreSQL::dbGetQuery(STS_predictor$conn,
     #   sprintf('SELECT EXISTS(SELECT * FROM "%s"  WHERE "peptide" IN (%s))',
-    #     STS_predictor$table_name, paste(sprintf("'%s'", query_peps), collapse = ', ')))
+    #     STS_predictor$table_name, paste(sprintf("'%s'", STS_query_peps), collapse = ', ')))
     # res <- RPostgreSQL::dbGetQuery(STS_predictor$conn,
     #   sprintf('SELECT * FROM "%s"  WHERE "peptide" IN (%s)',
-    #     STS_predictor$table_name, paste(sprintf("'%s'", query_peps), collapse = ', ')))
-    # res <- STS_predictor$lookup(query_peps)
-    # missing_peps <- setdiff(query_peps, res$peptide)
-    res <- STS_predictor$query(query_peps, ncores = ncores, 
+    #     STS_predictor$table_name, paste(sprintf("'%s'", STS_query_peps), collapse = ', ')))
+    # res <- STS_predictor$lookup(STS_query_peps)
+    # missing_peps <- setdiff(STS_query_peps, res$peptide)
+    res <- STS_predictor$query(STS_query_peps, ncores = ncores,
       batch_size = batch_size)
     rm(STS_predictor)
   }
   rm(res)
-  rm(query_peps)
+  rm(STS_query_peps)
   gc()
-  mymessage(sprintf('Finished precomputing all %s - %s - %.1f', 
-      job_description, hla_allele, percentile_rank)) 
+  message(sprintf('Finished precomputing all %s - %s - %.1f',
+      job_description, hla_allele, percentile_rank))
   invisible()
 }
+
+
