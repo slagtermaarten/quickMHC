@@ -6,7 +6,8 @@ potential_config_locs <-
     sapply(.libPaths(), function(p_dir) file.path(p_dir, 'quickMHC')))
 
 config_fn <-
-  sapply(potential_config_locs, list.files, pattern = '.*quickMHC.*\\.yaml',
+  sapply(potential_config_locs, list.files, 
+    pattern = '.*quickMHC.*\\.yaml',
     full.names = T) %>%
   .[sapply(., length) == 1] %>%
   .[[1]]

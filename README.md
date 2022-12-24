@@ -20,8 +20,12 @@ STS predictions are stored as such (example from the `STS_A1101_1.9` table)
 
 # Installation
 
-* Install PostgreSQL on your system, initialize a database and couple a database user to 
-  your Linux user account
+* Install PostgreSQL on your system, initialize a database named "binding_affinity" and couple a database user to your Linux user account
+
+I.e. start `psql` from the shell and type:
+
+    CREATE DATABASE binding_affinity;
+    CREATE USER my_user_name;
 
 * Clone this repo to a local directory and compile and install this package, probably most 
   easily done by running `build_package.sh` in the root directory
@@ -30,6 +34,11 @@ STS predictions are stored as such (example from the `STS_A1101_1.9` table)
   any config file (found using the regex: `.*quickMHC.*\\.yaml`) in the following 
   directories (ordered in descending priority): `~/.config`, the current working 
   directory, the location of quickMHC's installation. 
+
+Example contents of this file:
+
+    db_user: m.slagter # Or whatever db_user you created in the first step
+    db_name: binding_affinity
 
 # Usage
 
@@ -56,4 +65,6 @@ BA_predictor$query(c('SYFHPETHI'))
 # Todo
 
 * Make location of NetMHCpan configurable
-* Add functionality to create self lists for STS
+* Add functionality to create self lists for STS computation. Low priority, since STS is not contributing much predictive power.
+* Allow for user defined 'predictor' wrapper functions
+* A Singulariy/Docker container with both this package and the database pre-configured
