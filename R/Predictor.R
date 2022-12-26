@@ -185,7 +185,7 @@ Predictor <- R6::R6Class('Predictor',
       }, error = function(e) { print(e) })
     },
     compute = function(peptides, batch_size = 1e5, ncores = 1, 
-      verbose = F, overwrite = F) {
+      verbose = FALSE, overwrite = FALSE) {
       if (is.null(peptides) || length(peptides) == 0 || 
           all(is.na(peptides)))
         return(NULL)
@@ -214,17 +214,16 @@ Predictor <- R6::R6Class('Predictor',
               msg = sprintf('computing %s', paste(qpl, collapse = ', ')))
           }
           lres <- self$computer(qpl)
-
-          if (overwrite) {
-            self$store_res(lres)
-          } else {
-            save_subs <- 
-              lres[!peptide %in% already_computed$peptide]
-            self$store_res(lres)
-          }
-
           return(lres)
         }, .parallel = ncores > 1) %>% rbindlist(fill = T)
+
+        if (overwrite) {
+          self$store_res(compute_res)
+        } else {
+          save_subs <- 
+            compute_res[!peptide %in% already_computed$peptide]
+          self$store_res(compute_res)
+        }
 
         self$index_SQL()
 
